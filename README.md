@@ -19,7 +19,7 @@ SD_gene_scripts/
 │   ├── tree_method_only_intron_sge.smk  # Snakefile
 │   ├── config.yaml
 │   ├── env.cfg
-│   └── manifest.*.txt                   # example sample manifest
+│   └── manifest.txt                   # example sample manifest
 ├── paralog_variants/                    # Pipeline 2
 │   ├── Snakefile
 │   ├── config.yaml
