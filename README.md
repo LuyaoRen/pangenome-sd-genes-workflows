@@ -9,7 +9,7 @@ This repository contains two linked Snakemake pipelines for characterizing paral
 1. **`phylo_tree`** — extracts each paralog's sequence from every phased haplotype assembly, builds a multiple sequence alignment (MSA) of the shared intronic region, infers a maximum-likelihood phylogenetic tree (IQ-TREE2), and assigns every haplotype copy to a clade/paralog group.
 2. **`paralog_variants`** — takes the clade assignments and tree from `phylo_tree`, regroups sequences per clade, calls variants against the clade consensus, annotates them with Ensembl VEP, and summarizes copy-number and fixation status per gene family.
 
-**`paralog_variants` consumes the outputs of `phylo_tree`** (merged fasta, clade table, tree file) — always run `phylo_tree` first for a given gene cluster before running `paralog_variants` on it.
+**`paralog_variants` consumes the outputs of `phylo_tree`** (merged fasta, clade table, tree file) — always run `phylo_tree` first for a given SD gene family before running `paralog_variants` on it.
 
 ## Repository layout
 
