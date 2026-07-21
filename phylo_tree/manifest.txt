@@ -1,0 +1,2 @@
+sample	asm	project	flagger
+HG00235_h1	GCA_044165645.1_HG00235_hap1_hprc_r2_v1.fa.gz	HPRC-release2	HG00235.hifi_minimap2_2.noHap.bed

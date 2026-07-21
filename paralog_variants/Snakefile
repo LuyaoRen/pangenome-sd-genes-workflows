@@ -1,0 +1,199 @@
+import pandas as pd
+from collections import defaultdict
+
+configfile: "config.yaml"
+
+config = globals().get("config", {})
+manifest_file = config['tbl']
+manifest_df = pd.read_csv(manifest_file, sep='\t', index_col='cluster')
+
+# Define helper functions
+def find_paralog(wildcards):
+    return manifest_df.at[wildcards.cluster, 'paralog_table']
+
+def find_tree(wildcards):
+    return manifest_df.at[wildcards.cluster, 'tree']
+
+def find_msa(wildcards):
+    return manifest_df.at[wildcards.cluster, 'merged_fasta_file']
+
+def get_clades_from_checkpoint(wildcards):
+    fa_list_file = checkpoints.group_paralogs.get(cluster=wildcards.cluster).output["fa_list"]
+    with open(fa_list_file) as f:
+        fa_paths = [line.strip() for line in f if line.strip()]
+    clades = [p.split('_')[-1].replace('.fa', '') for p in fa_paths]
+    return clades
+
+rule all:
+    input:
+        lambda wildcards: [
+            f"results/{cluster}/variants/{cluster}_final_variants_summary.txt"
+            for cluster in manifest_df.index
+        ]
+
+# Checkpoint for dynamic clade discovery
+checkpoint group_paralogs:
+    input:
+        paralog_table=find_paralog,
+        merged_fasta_file=find_msa,
+    output:
+        group_done="results/{cluster}/variants/{cluster}.group_done",
+        fa_list="results/{cluster}/variants/{cluster}.fa.list",
+    threads: 1
+    resources:
+        hrs = 8,
+        mem = 2,
+    shell:
+        """
+        python scripts/get_paralog_group_sequence.py \
+            -f {input.merged_fasta_file} -p {input.paralog_table} -n {wildcards.cluster} \
+            -o results/{wildcards.cluster}/variants/ -c {output.fa_list}
+        touch {output.group_done}
+        """
+
+
+rule msa_per_group:
+    input:
+        fa="results/{cluster}/variants/{cluster}_{clade}.fa",
+        group_done=lambda wildcards: checkpoints.group_paralogs.get(cluster=wildcards.cluster).output.group_done
+    output:
+        msa="results/{cluster}/variants/{cluster}_{clade}.msa"
+    threads: 12
+    resources:
+        hrs = 240,
+        mem = 12,
+    shell:
+        """
+        mafft --adjustdirection --thread {threads} --auto --reorder {input.fa} > {output.msa}
+        """
+
+rule call_variants:
+    input:
+        msa="results/{cluster}/variants/{cluster}_{clade}.msa"
+    output:
+        variants="results/{cluster}/variants/{cluster}_{clade}.variants.txt",
+        vep_input="results/{cluster}/variants/{cluster}_{clade}.variants.vep_input.txt"
+    threads: 1
+    resources:
+        hrs = 8,
+        mem = 2,
+    shell:
+        """
+        python scripts/call_variants_from_msa.py -m {input.msa} -o {output.variants}
+        cat {output.variants} | sort -k1,1 -k2,2n | cut -f1-4 | grep -v CHROM > {output.vep_input}
+        """
+
+rule vep_annotate:
+    input:
+        msa="results/{cluster}/variants/{cluster}_{clade}.msa",
+        vep_input="results/{cluster}/variants/{cluster}_{clade}.variants.vep_input.txt",
+        gff_chm13=config['gff_chm13'],
+        gff_GRCh38=config['gff_GRCh38'],
+        ref_chm13=config['ref_chm13'],
+        ref_GRCh38=config['ref_GRCh38'],
+        alpha_missense_chm13=config['alpha_missense_chm13'],
+        alpha_missense_hg38=config['alpha_missense_hg38'],
+        polyphen_chm13=config['polyphen_chm13'],
+    output:
+        vep_output="results/{cluster}/variants/{cluster}_{clade}.variants.vep_output.txt"
+    threads: 1
+    resources:
+        hrs = 8,
+        mem = 2,
+    shell:
+        r"""
+        first_seq=$(grep -m 1 "^>" {input.msa} | sed 's/^>//' | sed 's/^_R_//')
+
+        if [[ "$first_seq" == CHM13* ]]; then
+
+            echo "Reference sequence is CHM13: $first_seq"
+
+            vep -i {input.vep_input} -o {output.vep_output} \
+                --gff {input.gff_chm13} \
+                --fasta {input.ref_chm13} \
+                --force_overwrite \
+                --plugin AlphaMissense,file={input.alpha_missense_chm13} \
+                --plugin PolyPhen_SIFT,db={input.polyphen_chm13}
+
+        elif [[ "$first_seq" == GRCh38* ]]; then
+
+            echo "Reference sequence is GRCh38: $first_seq"
+
+            vep -i {input.vep_input} -o {output.vep_output} \
+                --gff {input.gff_GRCh38} \
+                --fasta {input.ref_GRCh38} \
+                --force_overwrite \
+                --plugin AlphaMissense,file={input.alpha_missense_hg38}
+
+        else
+
+            echo "First sequence is not CHM13 or GRCh38: $first_seq"
+            echo -e "reference_status\tfirst_sequence\tmessage" > {output.vep_output}
+            echo -e "not_reference_gene\t$first_seq\tVEP annotation was skipped because the first sequence is not CHM13 or GRCh38" >> {output.vep_output}
+
+        fi
+        """
+
+rule lollipop_df:
+    input:
+        variants="results/{cluster}/variants/{cluster}_{clade}.variants.txt",
+        vep_output="results/{cluster}/variants/{cluster}_{clade}.variants.vep_output.txt",
+        paralog_table=find_paralog
+    output:
+        snp_genotype="results/{cluster}/variants/{cluster}_{clade}.snp_genotype.txt",
+        lollipop="results/{cluster}/variants/{cluster}_{clade}.lollipop.txt",
+        detailed_lollipop="results/{cluster}/variants/{cluster}_{clade}.detailed.lollipop.txt"
+    threads: 1
+    resources:
+        hrs = 8,
+        mem = 2,
+    shell:
+        """
+        python scripts/lollipop.py \
+            -f {input.variants} -v {input.vep_output} -p {input.paralog_table} \
+            -s {output.snp_genotype} -l {output.lollipop} -d {output.detailed_lollipop}
+        """
+
+rule fixation_plot:
+    input:
+        calde_info=find_paralog,
+        detailed_lollipop=lambda wildcards: expand(
+            "results/{cluster}/variants/{cluster}_{clade}.detailed.lollipop.txt",
+            cluster=[wildcards.cluster], clade=get_clades_from_checkpoint(wildcards)
+        ),
+        lollipop=lambda wildcards: expand(
+            "results/{cluster}/variants/{cluster}_{clade}.lollipop.txt",
+            cluster=[wildcards.cluster], clade=get_clades_from_checkpoint(wildcards)
+        ),
+        tree=find_tree,
+        gene_model=config['gene_model'],
+        sample_info=config['sample_info'],
+    output:
+        cnv_plot="results/{cluster}/variants/{cluster}.cnv_plot.pdf",
+        bar_plot="results/{cluster}/variants/{cluster}.bar_plot.pdf",
+        fixation_table="results/{cluster}/variants/{cluster}_final_variants_summary.txt"
+    threads: 1
+    params:
+        sex=config['sex']
+    resources:
+        hrs = 8,
+        mem = 8,
+    run:
+        detailed = ",".join(input.detailed_lollipop)
+        lolli = ",".join(input.lollipop)
+        shell(f"""
+        Rscript scripts/fixation.R \
+            --calde_info {input.calde_info} \
+            --anno {input.sample_info} \
+            --detailed_lollipop {detailed} \
+            --lollipop {lolli} \
+            --tree {input.tree} \
+            --gene_model {input.gene_model} \
+            --cnv_plot {output.cnv_plot} \
+            --bar_plot {output.bar_plot} \
+            --fixation_table {output.fixation_table} \
+            --sex {params.sex}
+        """)
+
+
+

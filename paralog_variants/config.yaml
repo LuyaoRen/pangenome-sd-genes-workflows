@@ -1,0 +1,11 @@
+tbl: manifest.txt
+gene_model: chm13v2.0_RefSeq_Liftoff_v5.2_gene_model_exons_cds_utr.full.txt
+sample_info: all_sample_info.txt
+gff_chm13: chm13v2.0_RefSeq_Liftoff_v5.2.mane_select.gff3.gz
+gff_GRCh38: gencode.v49.annotation.gff3.mane_select.gz
+ref_chm13: T2T-CHM13v2.fasta
+ref_GRCh38: hg38.no_alt.fa
+alpha_missense_chm13: AlphaMissense_chm13Lifted.header.tsv.gz
+polyphen_chm13: homo_sapiens_pangenome_PolyPhen_SIFT_20240502.db
+alpha_missense_hg38: AlphaMissense_hg38.tsv.gz
+sex: FALSE

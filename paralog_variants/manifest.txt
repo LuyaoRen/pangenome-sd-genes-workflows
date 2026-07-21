@@ -1,0 +1,2 @@
+cluster	paralog_table	merged_fasta_file	tree
+cluster_556 cluster_556_clade_information.txt  sample.chm13.chimp.merged.fa  msa.shared_region.trimal.fa.treefile

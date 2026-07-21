@@ -1,0 +1,9 @@
+human_ref: T2T-CHM13v2.fasta
+tbl: manifest.txt
+gene_bed: chm13v2.0_RefSeq_Liftoff_v5.2.gene.bed
+fragment_length: 100
+human_gene:
+  cluster_92:
+    ANKRD18B: chr9:33542752-33593966
+    ANKRD18A: chr9:38590349-38644798
+    ANKRD18CP: chr9:109327662-109410545
