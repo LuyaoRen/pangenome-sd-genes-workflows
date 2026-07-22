@@ -4,7 +4,7 @@ Snakemake workflows for constructing phylogenetic trees from the pangenome (`phy
 
 ## Overview
 
-This repository contains two linked Snakemake pipelines for characterizing paralogous, protein-coding genes located within segmental duplications (SDs) across a panel of phased genome assemblies (HPRC/HGSVC):
+This repository contains two linked Snakemake pipelines for characterizing paralogous SD genes located within segmental duplications (SDs) across a panel of phased genome assemblies (HPRC/HGSVC):
 
 1. **`phylo_tree`** — extracts each paralog's sequence from every phased haplotype assembly, builds a multiple sequence alignment (MSA) of the shared intronic region, infers a maximum-likelihood phylogenetic tree (IQ-TREE2), and assigns every haplotype copy to a clade/paralog group.
 2. **`paralog_variants`** — takes the clade assignments and tree from `phylo_tree`, regroups sequences per clade, calls variants against the clade consensus, annotates them with Ensembl VEP, and summarizes copy-number and fixation status per gene family.
@@ -27,8 +27,6 @@ SD_gene_scripts/
 │   └── manifest.txt                     # example cluster manifest
 └── scripts/                             # helper Python/R scripts shared by both pipelines
 ```
-
-Both Snakefiles call helper scripts using the relative path `scripts/...`, so **always launch `snakemake` from the `SD_gene_scripts/` repository root**, pointing at the Snakefile with `-s`.
 
 ## Environment requirements
 
@@ -63,7 +61,7 @@ Edit `phylo_tree/config.yaml`:
 
 | Field | Description |
 |---|---|
-| `human_ref` | Reference FASTA (e.g. `T2T-CHM13v2.fasta`), samtools-indexed |
+| `human_ref` | Reference FASTA (e.g. `T2T-CHM13v2.fasta`) |
 | `tbl` | Path to your sample manifest (see below) |
 | `gene_bed` | CHM13 gene-model BED used only to annotate the tree plots (format below) |
 | `fragment_length` | Minimum contiguous fragment length (bp) used when defining the shared intronic region for the MSA |
@@ -75,7 +73,7 @@ Sample manifest (`tbl`, tab-separated, one row per haplotype):
 |---|---|
 | `sample` | Sample/haplotype ID (e.g. `HG00235_h1`) |
 | `asm` | Path to that haplotype's phased assembly FASTA |
-| `project` | Source project label (e.g. `HPRC-release2`), for bookkeeping only |
+| `project` | Source project label (e.g. `HPRC-release2`) |
 | `flagger` | Path to a Flagger BED file flagging unreliable/collapsed regions in that assembly |
 
 `gene_bed` (e.g. `chm13v2.0_RefSeq_Liftoff_v5.2.gene.bed`) — tab-separated, **no header row**, one row per gene:
@@ -163,7 +161,6 @@ File formats for `gene_model` and `sample_info`:
 ## How to run
 
 ```bash
-# from the SD_gene_scripts/ repository root
 
 # 1) phylo_tree
 module load miniconda/24.7.1 samtools/1.21 minimap2/2.28 mafft/7.525 bedtools/2.31.1 iqtree/2.1.2 R/4.4.1 rustybam/0.1.33
@@ -199,8 +196,8 @@ For grid/cluster execution (SGE, etc.), submit via Snakemake's `--cluster`/`--pr
 |---|---|
 | `{cluster}_{clade}.fa` / `.msa` | Per-clade paralog sequences and alignment |
 | `{cluster}_{clade}.variants.txt`, `.vep_input.txt`, `.vep_output.txt` | Called variants and VEP functional annotation (incl. AlphaMissense / PolyPhen-SIFT scores) |
-| `{cluster}_{clade}.snp_genotype.txt`, `.lollipop.txt`, `.detailed.lollipop.txt` | Per-sample genotype and variant "lollipop" tables |
+| `{cluster}_{clade}.snp_genotype.txt`, `.lollipop.txt`, `.detailed.lollipop.txt` | Per-sample genotype and variant lollipop summary tables |
 | `{cluster}.cnv_plot.pdf`, `{cluster}.bar_plot.pdf` | Copy-number heatmap and variant summary bar plot |
-| **`{cluster}_final_variants_summary.txt`** | Final per-gene-cluster fixation/variant summary table — top-level pipeline output |
+| `{cluster}_final_variants_summary.txt` | Final fixation/variant summary table for monoclade groups in the gene family |
 
 
